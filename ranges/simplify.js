@@ -3,7 +3,10 @@
 // If the original range is shorter than the simplified one, return that.
 const satisfies = require('../functions/satisfies.js')
 const compare = require('../functions/compare.js')
+const parseOptions = require('../internal/parse-options.js')
 module.exports = (versions, range, options) => {
+  options = parseOptions(options)
+
   const set = []
   let first = null
   let prev = null

@@ -1,16 +1,15 @@
 const debug = require('../internal/debug')
-const { MAX_LENGTH, MAX_SAFE_INTEGER } = require('../internal/constants')
+const { MAX_LENGTH, MAX_SAFE_INTEGER, FLAG_includePrerelease, FLAG_loose, FLAG_rtl, hasFlag } = require('../internal/constants')
 const { re, t } = require('../internal/re')
 
 const parseOptions = require('../internal/parse-options')
 const { compareIdentifiers } = require('../internal/identifiers')
 class SemVer {
   constructor (version, options) {
-    options = parseOptions(options)
+    this.flagOptions = parseOptions(options)
 
     if (version instanceof SemVer) {
-      if (version.loose === !!options.loose &&
-          version.includePrerelease === !!options.includePrerelease) {
+      if ((version.flagOptions & ~FLAG_rtl) === (this.flagOptions & ~FLAG_rtl)) {
         return version
       } else {
         version = version.version
@@ -25,14 +24,9 @@ class SemVer {
       )
     }
 
-    debug('SemVer', version, options)
-    this.options = options
-    this.loose = !!options.loose
-    // this isn't actually relevant for versions, but keep it so that we
-    // don't run into trouble passing this.options around.
-    this.includePrerelease = !!options.includePrerelease
+    debug('SemVer', version, this.flagOptions)
 
-    const m = version.trim().match(options.loose ? re[t.LOOSE] : re[t.FULL])
+    const m = version.trim().match(hasFlag(this.flagOptions, FLAG_loose) ? re[t.LOOSE] : re[t.FULL])
 
     if (!m) {
       throw new TypeError(`Invalid Version: ${version}`)
@@ -76,6 +70,24 @@ class SemVer {
     this.format()
   }
 
+  get options() {
+    return {
+      includePrerelease: hasFlag(this.flagOptions, FLAG_includePrerelease),
+      loose: hasFlag(this.flagOptions, FLAG_loose),
+      rtl: hasFlag(this.flagOptions, FLAG_rtl),
+    }
+  }
+
+  get loose() {
+    return hasFlag(this.flagOptions, FLAG_loose)
+  }
+
+  // this isn't actually relevant for versions, but keep it so that we
+  // don't run into trouble passing this.options around.
+  get includePrerelease() {
+    return hasFlag(this.flagOptions, FLAG_includePrerelease)
+  }
+
   format () {
     this.version = `${this.major}.${this.minor}.${this.patch}`
     if (this.prerelease.length) {
@@ -89,12 +101,12 @@ class SemVer {
   }
 
   compare (other) {
-    debug('SemVer.compare', this.version, this.options, other)
+    debug('SemVer.compare', this.version, this.flagOptions, other)
     if (!(other instanceof SemVer)) {
       if (typeof other === 'string' && other === this.version) {
         return 0
       }
-      other = new SemVer(other, this.options)
+      other = new SemVer(other, this.flagOptions)
     }
 
     if (other.version === this.version) {
@@ -106,7 +118,7 @@ class SemVer {
 
   compareMain (other) {
     if (!(other instanceof SemVer)) {
-      other = new SemVer(other, this.options)
+      other = new SemVer(other, this.flagOptions)
     }
 
     return (
@@ -118,7 +130,7 @@ class SemVer {
 
   comparePre (other) {
     if (!(other instanceof SemVer)) {
-      other = new SemVer(other, this.options)
+      other = new SemVer(other, this.flagOptions)
     }
 
     // NOT having a prerelease is > having one
@@ -151,7 +163,7 @@ class SemVer {
 
   compareBuild (other) {
     if (!(other instanceof SemVer)) {
-      other = new SemVer(other, this.options)
+      other = new SemVer(other, this.flagOptions)
     }
 
     let i = 0

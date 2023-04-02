@@ -7,8 +7,10 @@ const gt = require('../functions/gt')
 const lt = require('../functions/lt')
 const lte = require('../functions/lte')
 const gte = require('../functions/gte')
+const parseOptions = require('../internal/parse-options')
 
 const outside = (version, range, hilo, options) => {
+  options = parseOptions(options)
   version = new SemVer(version, options)
   range = new Range(range, options)
 

@@ -14,4 +14,8 @@ module.exports = {
   MAX_LENGTH,
   MAX_SAFE_INTEGER,
   MAX_SAFE_COMPONENT_LENGTH,
+  FLAG_includePrerelease: 1 << 1,
+  FLAG_loose: 1 << 2,
+  FLAG_rtl: 1 << 3,
+  hasFlag: (options, flag) => (options & flag) > 0,
 }

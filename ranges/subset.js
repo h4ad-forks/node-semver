@@ -3,6 +3,8 @@ const Comparator = require('../classes/comparator.js')
 const { ANY } = Comparator
 const satisfies = require('../functions/satisfies.js')
 const compare = require('../functions/compare.js')
+const { FLAG_includePrerelease, hasFlag } = require('../internal/constants.js')
+const parseOptions = require('../internal/parse-options.js')
 
 // Complex range `r1 || r2 || ...` is a subset of `R1 || R2 || ...` iff:
 // - Every simple range `r1, r2, ...` is a null set, OR
@@ -40,11 +42,12 @@ const compare = require('../functions/compare.js')
 //     - If no C has a prerelease and the LT.semver tuple, return false
 // - Else return true
 
-const subset = (sub, dom, options = {}) => {
+const subset = (sub, dom, options = 0) => {
   if (sub === dom) {
     return true
   }
 
+  options = parseOptions(options)
   sub = new Range(sub, options)
   dom = new Range(dom, options)
   let sawNonNull = false
@@ -73,10 +76,11 @@ const simpleSubset = (sub, dom, options) => {
     return true
   }
 
+  const includePrerelease = hasFlag(options, FLAG_includePrerelease)
   if (sub.length === 1 && sub[0].semver === ANY) {
     if (dom.length === 1 && dom[0].semver === ANY) {
       return true
-    } else if (options.includePrerelease) {
+    } else if (includePrerelease) {
       sub = [new Comparator('>=0.0.0-0')]
     } else {
       sub = [new Comparator('>=0.0.0')]
@@ -84,7 +88,7 @@ const simpleSubset = (sub, dom, options) => {
   }
 
   if (dom.length === 1 && dom[0].semver === ANY) {
-    if (options.includePrerelease) {
+    if (includePrerelease) {
       return true
     } else {
       dom = [new Comparator('>=0.0.0')]
@@ -141,10 +145,10 @@ const simpleSubset = (sub, dom, options) => {
   // if the subset has a prerelease, we need a comparator in the superset
   // with the same tuple and a prerelease, or it's not a subset
   let needDomLTPre = lt &&
-    !options.includePrerelease &&
+    !includePrerelease &&
     lt.semver.prerelease.length ? lt.semver : false
   let needDomGTPre = gt &&
-    !options.includePrerelease &&
+    !includePrerelease &&
     gt.semver.prerelease.length ? gt.semver : false
   // exception: <1.2.3-0 is the same as <1.2.3
   if (needDomLTPre && needDomLTPre.prerelease.length === 1 &&

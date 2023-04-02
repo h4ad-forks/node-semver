@@ -1,11 +1,9 @@
-const { MAX_LENGTH } = require('../internal/constants')
+const { MAX_LENGTH, FLAG_loose, hasFlag } = require('../internal/constants')
 const { re, t } = require('../internal/re')
 const SemVer = require('../classes/semver')
 
 const parseOptions = require('../internal/parse-options')
 const parse = (version, options) => {
-  options = parseOptions(options)
-
   if (version instanceof SemVer) {
     return version
   }
@@ -18,7 +16,8 @@ const parse = (version, options) => {
     return null
   }
 
-  const r = options.loose ? re[t.LOOSE] : re[t.FULL]
+  options = parseOptions(options)
+  const r = hasFlag(options, FLAG_loose) ? re[t.LOOSE] : re[t.FULL]
   if (!r.test(version)) {
     return null
   }

@@ -1,6 +1,8 @@
 const SemVer = require('../classes/semver')
 const Range = require('../classes/range')
+const parseOptions = require('../internal/parse-options')
 const minSatisfying = (versions, range, options) => {
+  options = parseOptions(options)
   let min = null
   let minSV = null
   let rangeObj = null

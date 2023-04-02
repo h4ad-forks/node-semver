@@ -1,7 +1,10 @@
 const SemVer = require('../classes/semver')
 const Range = require('../classes/range')
+const parseOptions = require('../internal/parse-options')
 
 const maxSatisfying = (versions, range, options) => {
+  options = parseOptions(options)
+
   let max = null
   let maxSV = null
   let rangeObj = null

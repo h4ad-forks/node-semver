@@ -6,19 +6,17 @@ class Comparator {
   }
 
   constructor (comp, options) {
-    options = parseOptions(options)
+    this.flagOptions = parseOptions(options)
 
     if (comp instanceof Comparator) {
-      if (comp.loose === !!options.loose) {
+      if (hasFlag(comp.flagOptions, FLAG_loose)) {
         return comp
       } else {
         comp = comp.value
       }
     }
 
-    debug('comparator', comp, options)
-    this.options = options
-    this.loose = !!options.loose
+    debug('comparator', comp, this.flagOptions)
     this.parse(comp)
 
     if (this.semver === ANY) {
@@ -30,8 +28,21 @@ class Comparator {
     debug('comp', this)
   }
 
+  get options() {
+    return {
+      includePrerelease: hasFlag(this.flagOptions, FLAG_includePrerelease),
+      loose: hasFlag(this.flagOptions, FLAG_loose),
+      rtl: hasFlag(this.flagOptions, FLAG_rtl),
+    }
+  }
+
+  get loose() {
+    return hasFlag(this.flagOptions, FLAG_loose)
+  }
+
   parse (comp) {
-    const r = this.options.loose ? re[t.COMPARATORLOOSE] : re[t.COMPARATOR]
+    const loose = hasFlag(this.flagOptions, FLAG_loose)
+    const r = loose ? re[t.COMPARATORLOOSE] : re[t.COMPARATOR]
     const m = comp.match(r)
 
     if (!m) {
@@ -47,7 +58,7 @@ class Comparator {
     if (!m[2]) {
       this.semver = ANY
     } else {
-      this.semver = new SemVer(m[2], this.options.loose)
+      this.semver = new SemVer(m[2], loose)
     }
   }
 
@@ -56,7 +67,7 @@ class Comparator {
   }
 
   test (version) {
-    debug('Comparator.test', version, this.options.loose)
+    debug('Comparator.test', version, hasFlag(this.flagOptions, FLAG_loose))
 
     if (this.semver === ANY || version === ANY) {
       return true
@@ -64,13 +75,13 @@ class Comparator {
 
     if (typeof version === 'string') {
       try {
-        version = new SemVer(version, this.options)
+        version = new SemVer(version, this.flagOptions)
       } catch (er) {
         return false
       }
     }
 
-    return cmp(version, this.operator, this.semver, this.options)
+    return cmp(version, this.operator, this.semver, this.flagOptions)
   }
 
   intersects (comp, options) {
@@ -79,10 +90,7 @@ class Comparator {
     }
 
     if (!options || typeof options !== 'object') {
-      options = {
-        loose: !!options,
-        includePrerelease: false,
-      }
+      options = FLAG_loose
     }
 
     if (this.operator === '') {
@@ -130,6 +138,7 @@ module.exports = Comparator
 
 const parseOptions = require('../internal/parse-options')
 const { re, t } = require('../internal/re')
+const { FLAG_loose, hasFlag } = require('../internal/constants')
 const cmp = require('../functions/cmp')
 const debug = require('../internal/debug')
 const SemVer = require('./semver')

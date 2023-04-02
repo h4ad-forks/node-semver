@@ -1,16 +1,16 @@
 // hoisted class for cyclic dependency
 class Range {
   constructor (range, options) {
-    options = parseOptions(options)
+    this.flagOptions = parseOptions(options)
 
     if (range instanceof Range) {
-      if (
-        range.loose === !!options.loose &&
-        range.includePrerelease === !!options.includePrerelease
+      if (hasFlag(range.flagOptions, FLAG_loose) === hasFlag(this.flagOptions, FLAG_loose)
+      && hasFlag(range.flagOptions, FLAG_includePrerelease) === hasFlag(this.flagOptions, FLAG_includePrerelease)
       ) {
+      // if ((range.flagOptions & ~FLAG_rtl) === (this.flagOptions & ~FLAG_rtl)) {
         return range
       } else {
-        return new Range(range.raw, options)
+        return new Range(range.raw, this.flagOptions)
       }
     }
 
@@ -21,10 +21,6 @@ class Range {
       this.format()
       return this
     }
-
-    this.options = options
-    this.loose = !!options.loose
-    this.includePrerelease = !!options.includePrerelease
 
     // First, split based on boolean or ||
     this.raw = range
@@ -62,6 +58,24 @@ class Range {
     this.format()
   }
 
+  get options() {
+    return {
+      includePrerelease: hasFlag(this.flagOptions, FLAG_includePrerelease),
+      loose: hasFlag(this.flagOptions, FLAG_loose),
+      rtl: hasFlag(this.flagOptions, FLAG_rtl),
+    }
+  }
+
+  get loose() {
+    return hasFlag(this.flagOptions, FLAG_loose)
+  }
+
+  // this isn't actually relevant for versions, but keep it so that we
+  // don't run into trouble passing this.options around.
+  get includePrerelease() {
+    return hasFlag(this.flagOptions, FLAG_includePrerelease)
+  }
+
   format () {
     this.range = this.set
       .map((comps) => {
@@ -81,17 +95,17 @@ class Range {
 
     // memoize range parsing for performance.
     // this is a very hot path, and fully deterministic.
-    const memoOpts = buildMemoKeyFromOptions(this.options)
+    const memoOpts = this.flagOptions.toString()
     const memoKey = memoOpts + range
     const cached = cache.get(memoKey)
     if (cached) {
       return cached
     }
 
-    const loose = this.options.loose
+    const loose = hasFlag(this.flagOptions, FLAG_loose)
     // `1.2.3 - 1.2.4` => `>=1.2.3 <=1.2.4`
     const hr = loose ? re[t.HYPHENRANGELOOSE] : re[t.HYPHENRANGE]
-    range = range.replace(hr, hyphenReplace(this.options.includePrerelease))
+    range = range.replace(hr, hyphenReplace(hasFlag(this.flagOptions, FLAG_includePrerelease)))
     debug('hyphen replace', range)
     // `> 1.2.3 < 1.2.5` => `>1.2.3 <1.2.5`
     range = range.replace(re[t.COMPARATORTRIM], comparatorTrimReplace)
@@ -111,16 +125,16 @@ class Range {
 
     let rangeList = range
       .split(' ')
-      .map(comp => parseComparator(comp, this.options))
+      .map(comp => parseComparator(comp, this.flagOptions))
       .join(' ')
       .split(/\s+/)
       // >=0.0.0 is equivalent to *
-      .map(comp => replaceGTE0(comp, this.options))
+      .map(comp => replaceGTE0(comp, this.flagOptions))
 
     if (loose) {
       // in loose mode, throw out any that are not valid comparators
       rangeList = rangeList.filter(comp => {
-        debug('loose invalid filter', comp, this.options)
+        debug('loose invalid filter', comp, this.flagOptions)
         return !!comp.match(re[t.COMPARATORLOOSE])
       })
     }
@@ -130,7 +144,7 @@ class Range {
     // if more than one comparator, remove any * comparators
     // also, don't include the same comparator more than once
     const rangeMap = new Map()
-    const comparators = rangeList.map(comp => new Comparator(comp, this.options))
+    const comparators = rangeList.map(comp => new Comparator(comp, this.flagOptions))
     for (const comp of comparators) {
       if (isNullSet(comp)) {
         return [comp]
@@ -176,46 +190,18 @@ class Range {
 
     if (typeof version === 'string') {
       try {
-        version = new SemVer(version, this.options)
+        version = new SemVer(version, this.flagOptions)
       } catch (er) {
         return false
       }
     }
 
     for (let i = 0; i < this.set.length; i++) {
-      if (testSet(this.set[i], version, this.options)) {
+      if (testSet(this.set[i], version, this.flagOptions)) {
         return true
       }
     }
     return false
-  }
-}
-
-function buildMemoKeyFromOptions(options) {
-  if (options.includePrerelease === true) {
-    if (options.loose === true && options.rtl === true) {
-      return '1';
-    }
-
-    if (options.loose === true) {
-      return '2';
-    }
-  
-    if (options.rtl === true) {
-      return '3';
-    }
-
-    return '4';
-  } else if (options.loose === true) {
-    if (options.rtl === true) {
-      return '5';
-    }
-
-    return '6';
-  } else if (options.rtl === true) {
-    return '7';
-  } else {
-    return '8';
   }
 }
 
@@ -235,6 +221,7 @@ const {
   tildeTrimReplace,
   caretTrimReplace,
 } = require('../internal/re')
+const { FLAG_loose, FLAG_includePrerelease, FLAG_rtl, hasFlag } = require('../internal/constants')
 
 const isNullSet = c => c.value === '<0.0.0-0'
 const isAny = c => c.value === ''
@@ -288,7 +275,7 @@ const replaceTildes = (comp, options) =>
   }).join(' ')
 
 const replaceTilde = (comp, options) => {
-  const r = options.loose ? re[t.TILDELOOSE] : re[t.TILDE]
+  const r = hasFlag(options, FLAG_loose) ? re[t.TILDELOOSE] : re[t.TILDE]
   return comp.replace(r, (_, M, m, p, pr) => {
     debug('tilde', comp, _, M, m, p, pr)
     let ret
@@ -330,8 +317,8 @@ const replaceCarets = (comp, options) =>
 
 const replaceCaret = (comp, options) => {
   debug('caret', comp, options)
-  const r = options.loose ? re[t.CARETLOOSE] : re[t.CARET]
-  const z = options.includePrerelease ? '-0' : ''
+  const r = hasFlag(options, FLAG_loose) ? re[t.CARETLOOSE] : re[t.CARET]
+  const z = hasFlag(options, FLAG_includePrerelease) ? '-0' : ''
   return comp.replace(r, (_, M, m, p, pr) => {
     debug('caret', comp, _, M, m, p, pr)
     let ret
@@ -390,7 +377,7 @@ const replaceXRanges = (comp, options) => {
 
 const replaceXRange = (comp, options) => {
   comp = comp.trim()
-  const r = options.loose ? re[t.XRANGELOOSE] : re[t.XRANGE]
+  const r = hasFlag(options, FLAG_loose) ? re[t.XRANGELOOSE] : re[t.XRANGE]
   return comp.replace(r, (ret, gtlt, M, m, p, pr) => {
     debug('xRange', comp, ret, gtlt, M, m, p, pr)
     const xM = isX(M)
@@ -404,7 +391,7 @@ const replaceXRange = (comp, options) => {
 
     // if we're including prereleases in the match, then we need
     // to fix this to -0, the lowest possible prerelease value
-    pr = options.includePrerelease ? '-0' : ''
+    pr = hasFlag(options, FLAG_includePrerelease) ? '-0' : ''
 
     if (xM) {
       if (gtlt === '>' || gtlt === '<') {
@@ -474,7 +461,7 @@ const replaceStars = (comp, options) => {
 const replaceGTE0 = (comp, options) => {
   debug('replaceGTE0', comp, options)
   return comp.trim()
-    .replace(re[options.includePrerelease ? t.GTE0PRE : t.GTE0], '')
+    .replace(re[hasFlag(options, FLAG_loose) ? t.GTE0PRE : t.GTE0], '')
 }
 
 // This function is passed to string.replace(re[t.HYPHENRANGE])
@@ -521,7 +508,7 @@ const testSet = (set, version, options) => {
     }
   }
 
-  if (version.prerelease.length && !options.includePrerelease) {
+  if (version.prerelease.length && !hasFlag(options, FLAG_includePrerelease)) {
     // Find the set of versions that are allowed to have prereleases
     // For example, ^1.2.3-pr.1 desugars to >=1.2.3-pr.1 <2.0.0
     // That should allow `1.2.3-pr.2` to pass.

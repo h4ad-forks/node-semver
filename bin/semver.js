@@ -13,21 +13,15 @@ let inc = null
 
 const version = require('../package.json').version
 
-let loose = false
-
-let includePrerelease = false
-
+let options = 0
 let coerce = false
-
-let rtl = false
 
 let identifier
 
 const semver = require('../')
+const { FLAG_includePrerelease, FLAG_loose, FLAG_rtl } = require('../internal/constants')
 
 let reverse = false
-
-let options = {}
 
 const main = () => {
   if (!argv.length) {
@@ -46,10 +40,10 @@ const main = () => {
         reverse = true
         break
       case '-l': case '--loose':
-        loose = true
+        options |= FLAG_loose
         break
       case '-p': case '--include-prerelease':
-        includePrerelease = true
+        options |= FLAG_includePrerelease
         break
       case '-v': case '--version':
         versions.push(argv.shift())
@@ -75,10 +69,10 @@ const main = () => {
         coerce = true
         break
       case '--rtl':
-        rtl = true
+        options |= FLAG_rtl
         break
       case '--ltr':
-        rtl = false
+        options &= ~FLAG_rtl
         break
       case '-h': case '--help': case '-?':
         return help()
@@ -87,8 +81,6 @@ const main = () => {
         break
     }
   }
-
-  options = { loose: loose, includePrerelease: includePrerelease, rtl: rtl }
 
   versions = versions.map((v) => {
     return coerce ? (semver.coerce(v, options) || { version: v }).version : v

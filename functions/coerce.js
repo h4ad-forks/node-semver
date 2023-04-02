@@ -1,6 +1,8 @@
 const SemVer = require('../classes/semver')
 const parse = require('./parse')
 const { re, t } = require('../internal/re')
+const parseOptions = require('../internal/parse-options')
+const { hasFlag, FLAG_rtl } = require('../internal/constants')
 
 const coerce = (version, options) => {
   if (version instanceof SemVer) {
@@ -15,10 +17,10 @@ const coerce = (version, options) => {
     return null
   }
 
-  options = options || {}
+  options = parseOptions(options)
 
   let match = null
-  if (!options.rtl) {
+  if (!hasFlag(options, FLAG_rtl)) {
     match = version.match(re[t.COERCE])
   } else {
     // Find the right-most coercible string that does not share
